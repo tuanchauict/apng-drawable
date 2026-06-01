@@ -23,7 +23,11 @@ import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.graphics.drawable.Drawable
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.animation.AnimationUtils
 import androidx.annotation.DrawableRes
@@ -36,6 +40,7 @@ import com.linecorp.apng.ApngDrawable.ApngState
 import com.linecorp.apng.ApngDrawable.Companion.decode
 import com.linecorp.apng.decoder.Apng
 import com.linecorp.apng.decoder.ApngException
+import com.linecorp.apng.decoder.DecodeMode
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -149,6 +154,14 @@ class ApngDrawable @VisibleForTesting internal constructor(
     private val repeatAnimationCallbacks: MutableList<RepeatAnimationCallback> = arrayListOf()
     private val frameStartTimes: IntArray = IntArray(frameCount)
 
+    /**
+     * For [DecodeMode.ON_DEMAND] only: a background worker that composes frames
+     * off the UI thread and hands them back as ready-to-blit bitmaps. `null` for
+     * [DecodeMode.EAGER], whose frames are O(1) copies drawn synchronously.
+     */
+    private val onDemandRenderer: OnDemandRenderer? =
+        if (apngState.apng.decodeMode == DecodeMode.ON_DEMAND) OnDemandRenderer() else null
+
     private var scaledWidth: Int = apngState.width
     private var scaledHeight: Int = apngState.height
     private var isStarted: Boolean = false
@@ -179,13 +192,20 @@ class ApngDrawable @VisibleForTesting internal constructor(
         if (isStarted) {
             progressAnimationElapsedTime()
         }
-        apngState.apng.drawWithIndex(
-            currentFrameIndex,
-            canvas,
-            null,
-            bounds,
-            paint
-        )
+        val renderer = onDemandRenderer
+        if (renderer != null) {
+            // ON_DEMAND: blit the last ready frame and let the worker catch up.
+            renderer.draw(canvas, currentFrameIndex, bounds, paint)
+        } else {
+            // EAGER: compose-and-draw synchronously (a memory copy of a ready frame).
+            apngState.apng.drawWithIndex(
+                currentFrameIndex,
+                canvas,
+                null,
+                bounds,
+                paint
+            )
+        }
         if (isStarted) {
             invalidateSelf()
         }
@@ -308,7 +328,10 @@ class ApngDrawable @VisibleForTesting internal constructor(
      * Releases resources managed by the native layer.
      * Call this image when it is no longer used.
      */
-    fun recycle() = apngState.apng.recycle()
+    fun recycle() {
+        onDemandRenderer?.release()
+        apngState.apng.recycle()
+    }
 
     private fun progressAnimationElapsedTime() {
         val lastFrame = currentFrameIndex
@@ -413,6 +436,86 @@ class ApngDrawable @VisibleForTesting internal constructor(
         }
     }
 
+    /**
+     * Decodes frames for [DecodeMode.ON_DEMAND] on a background thread and hands the
+     * finished frame to the UI thread as a ready-to-blit bitmap.
+     *
+     * Two bitmaps ping-pong: the worker composes the requested frame into the back
+     * buffer (via the streaming decoder), then posts a swap to the main thread which
+     * promotes it to the front buffer and invalidates the drawable. [draw] always
+     * blits the most recent ready frame, so the UI thread never blocks on decoding;
+     * if the requested frame is not ready yet the previous frame is shown until the
+     * worker catches up. Because draws and swaps both run on the main thread while the
+     * worker only ever writes the back buffer, the two threads never touch the same
+     * bitmap concurrently.
+     */
+    private inner class OnDemandRenderer {
+        private val frameWidth = apngState.apng.width
+        private val frameHeight = apngState.apng.height
+        private var frontBitmap =
+            Bitmap.createBitmap(frameWidth, frameHeight, Bitmap.Config.ARGB_8888)
+        private var backBitmap =
+            Bitmap.createBitmap(frameWidth, frameHeight, Bitmap.Config.ARGB_8888)
+
+        private val thread = HandlerThread("ApngDrawable-decode").apply { start() }
+        private val worker = Handler(thread.looper)
+        private val main = Handler(Looper.getMainLooper())
+
+        /** Frame currently held by [frontBitmap], or -1 if nothing is decoded yet. */
+        private var frontIndex = -1
+
+        /** Frame the worker is currently decoding, or -1 if idle. */
+        private var pendingIndex = -1
+
+        @Volatile
+        private var released = false
+
+        fun draw(canvas: Canvas, frameIndex: Int, bounds: Rect, paint: Paint) {
+            if (frontIndex >= 0) {
+                canvas.drawBitmap(frontBitmap, null, bounds, paint)
+            }
+            ensure(frameIndex)
+        }
+
+        private fun ensure(frameIndex: Int) {
+            if (released || frameIndex == frontIndex || frameIndex == pendingIndex) {
+                return
+            }
+            pendingIndex = frameIndex
+            worker.post { decodeInto(frameIndex) }
+        }
+
+        @WorkerThread
+        private fun decodeInto(frameIndex: Int) {
+            if (released) {
+                return
+            }
+            // Compose the frame into the back buffer via the streaming decoder.
+            apngState.apng.drawFrame(frameIndex, backBitmap)
+            main.post {
+                if (released) {
+                    return@post
+                }
+                if (pendingIndex == frameIndex) {
+                    pendingIndex = -1
+                }
+                // Promote the freshly decoded back buffer to the front.
+                val promoted = backBitmap
+                backBitmap = frontBitmap
+                frontBitmap = promoted
+                frontIndex = frameIndex
+                invalidateSelf()
+            }
+        }
+
+        fun release() {
+            released = true
+            worker.removeCallbacksAndMessages(null)
+            main.removeCallbacksAndMessages(null)
+            thread.quitSafely()
+        }
+    }
+
     internal class ApngState(
         val apng: Apng,
         /**
@@ -495,8 +598,10 @@ class ApngDrawable @VisibleForTesting internal constructor(
             res: Resources,
             @RawRes @DrawableRes id: Int,
             width: Int? = null,
-            height: Int? = null
-        ): ApngDrawable = res.openRawResource(id).buffered().use { decode(it, width, height) }
+            height: Int? = null,
+            decodeMode: DecodeMode = DecodeMode.EAGER
+        ): ApngDrawable =
+            res.openRawResource(id).buffered().use { decode(it, width, height, decodeMode) }
 
         /**
          * Creates [ApngDrawable] from asset.
@@ -520,8 +625,10 @@ class ApngDrawable @VisibleForTesting internal constructor(
             assetManager: AssetManager,
             assetName: String,
             width: Int? = null,
-            height: Int? = null
-        ): ApngDrawable = assetManager.open(assetName).buffered().use { decode(it, width, height) }
+            height: Int? = null,
+            decodeMode: DecodeMode = DecodeMode.EAGER
+        ): ApngDrawable =
+            assetManager.open(assetName).buffered().use { decode(it, width, height, decodeMode) }
 
         /**
          * Creates [ApngDrawable] from given [filePath].
@@ -546,8 +653,12 @@ class ApngDrawable @VisibleForTesting internal constructor(
          */
         @WorkerThread
         @Throws(ApngException::class, FileNotFoundException::class, IOException::class)
-        fun decode(filePath: String, width: Int? = null, height: Int? = null): ApngDrawable =
-            decode(File(filePath), width, height)
+        fun decode(
+            filePath: String,
+            width: Int? = null,
+            height: Int? = null,
+            decodeMode: DecodeMode = DecodeMode.EAGER
+        ): ApngDrawable = decode(File(filePath), width, height, decodeMode)
 
         /**
          * Creates [ApngDrawable] from given [file].
@@ -566,8 +677,12 @@ class ApngDrawable @VisibleForTesting internal constructor(
          */
         @WorkerThread
         @Throws(ApngException::class, FileNotFoundException::class, IOException::class)
-        fun decode(file: File, width: Int? = null, height: Int? = null): ApngDrawable =
-            file.inputStream().buffered().use { decode(it, width, height) }
+        fun decode(
+            file: File,
+            width: Int? = null,
+            height: Int? = null,
+            decodeMode: DecodeMode = DecodeMode.EAGER
+        ): ApngDrawable = file.inputStream().buffered().use { decode(it, width, height, decodeMode) }
 
         /**
          * Creates [ApngDrawable] from given [stream].
@@ -575,6 +690,11 @@ class ApngDrawable @VisibleForTesting internal constructor(
          * @param stream The [InputStream] to get from.
          * @param width An optional width value to specify width size manually.
          * @param height An optional height value to specify height size manually.
+         * @param decodeMode How frames are decoded. Defaults to [DecodeMode.EAGER]
+         *                   (all frames composed up front). Use [DecodeMode.ON_DEMAND]
+         *                   for large/many-frame APNGs that need roughly constant
+         *                   memory, at the cost of decoding one frame per displayed
+         *                   frame and O(target) backward seeks.
          *
          * @return Decoded drawable object.
          *
@@ -587,7 +707,8 @@ class ApngDrawable @VisibleForTesting internal constructor(
         fun decode(
             stream: InputStream,
             @IntRange(from = 1, to = Int.MAX_VALUE.toLong()) width: Int? = null,
-            @IntRange(from = 1, to = Int.MAX_VALUE.toLong()) height: Int? = null
+            @IntRange(from = 1, to = Int.MAX_VALUE.toLong()) height: Int? = null,
+            decodeMode: DecodeMode = DecodeMode.EAGER
         ): ApngDrawable {
             require(!((width == null) xor (height == null))) {
                 "Can not specify only one side of size. width = $width, height = $height"
@@ -603,7 +724,7 @@ class ApngDrawable @VisibleForTesting internal constructor(
             } else {
                 Bitmap.DENSITY_NONE
             }
-            val apng = Apng.decode(stream)
+            val apng = Apng.decode(stream, decodeMode)
             return ApngDrawable(
                 ApngState(
                     apng,
