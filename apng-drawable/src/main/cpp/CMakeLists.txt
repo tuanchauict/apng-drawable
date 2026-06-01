@@ -67,6 +67,7 @@ set(apng_drawable_headers
         ${apng_drawable_source_dir}/ApngImage.h
         ${apng_drawable_source_dir}/Error.h
         ${apng_drawable_source_dir}/Log.h
+        ${apng_drawable_source_dir}/MemoryStreamSource.h
         ${apng_drawable_source_dir}/StreamSource.h
         )
 
@@ -76,6 +77,7 @@ set(apng_drawable_sources
         ${apng_drawable_source_dir}/ApngDecoderJni.cpp
         ${apng_drawable_source_dir}/ApngFrame.cpp
         ${apng_drawable_source_dir}/ApngImage.cpp
+        ${apng_drawable_source_dir}/MemoryStreamSource.cpp
         ${apng_drawable_source_dir}/StreamSource.cpp
         )
 
