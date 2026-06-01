@@ -72,12 +72,18 @@ class ApngCoilDecoder(
 
         /**
          * Returns true only for *animated* PNGs: a PNG signature followed by an
-         * `acTL` (animation control) chunk. Both checks peek without consuming, so
-         * the decoder can still read the full stream afterwards.
+         * `acTL` (animation control) chunk. In a valid APNG `acTL` precedes the first
+         * `IDAT`, so the search is bounded to the pre-`IDAT` header region instead of
+         * scanning the (possibly large) whole stream — important since plain PNGs
+         * would otherwise be read to the end just to conclude "not animated". All
+         * reads go through `peek()`, so the decoder can still read the full stream.
          */
         private fun isApng(source: BufferedSource): Boolean {
             if (!source.rangeEquals(0L, PNG_SIGNATURE)) return false
-            return source.peek().indexOf(ACTL_CHUNK) != -1L
+            val idatIndex = source.peek().indexOf(IDAT_CHUNK)
+            if (idatIndex == -1L) return false
+            val header = source.peek().readByteString(idatIndex)
+            return header.indexOf(ACTL_CHUNK) != -1
         }
 
         private companion object {
@@ -85,6 +91,7 @@ class ApngCoilDecoder(
                 0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
             ).toByteString()
             val ACTL_CHUNK = "acTL".encodeUtf8()
+            val IDAT_CHUNK = "IDAT".encodeUtf8()
         }
     }
 }
