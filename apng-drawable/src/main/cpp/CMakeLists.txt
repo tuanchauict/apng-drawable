@@ -61,6 +61,7 @@ set(apng_drawable_source_dir
         )
 
 set(apng_drawable_headers
+        ${apng_drawable_source_dir}/ApngCompose.h
         ${apng_drawable_source_dir}/ApngDecoder.h
         ${apng_drawable_source_dir}/ApngFrame.h
         ${apng_drawable_source_dir}/ApngImage.h
@@ -70,6 +71,7 @@ set(apng_drawable_headers
         )
 
 set(apng_drawable_sources
+        ${apng_drawable_source_dir}/ApngCompose.cpp
         ${apng_drawable_source_dir}/ApngDecoder.cpp
         ${apng_drawable_source_dir}/ApngDecoderJni.cpp
         ${apng_drawable_source_dir}/ApngFrame.cpp
