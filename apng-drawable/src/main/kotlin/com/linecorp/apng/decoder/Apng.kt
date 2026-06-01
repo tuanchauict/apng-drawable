@@ -57,7 +57,13 @@ internal class Apng(
      * The size of memory required for this image in the native layer.
      */
     @IntRange(from = 0, to = Int.MAX_VALUE.toLong())
-    val allFrameByteCount: Long
+    val allFrameByteCount: Long,
+    /**
+     * How frames are decoded in the native layer. Determines which set of JNI
+     * entry points ([ApngDecoderJni.draw] / [ApngDecoderJni.drawStream], etc.) this
+     * instance routes to.
+     */
+    val decodeMode: DecodeMode = DecodeMode.EAGER
 ) {
     private val bitmap: Bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
 
@@ -66,7 +72,7 @@ internal class Apng(
 
     init {
         Trace.beginSection("Apng#draw")
-        ApngDecoderJni.draw(id, 0, bitmap)
+        drawFrame(0, bitmap)
         Trace.endSection()
     }
 
@@ -83,10 +89,24 @@ internal class Apng(
         get() = bitmap.config
 
     fun recycle() {
-        ApngDecoderJni.recycle(id)
+        when (decodeMode) {
+            DecodeMode.EAGER -> ApngDecoderJni.recycle(id)
+            DecodeMode.ON_DEMAND -> ApngDecoderJni.recycleStream(id)
+        }
     }
 
     fun copy(): Apng = copy(this)
+
+    /**
+     * Composes [frameIndex] into [target] using the JNI entry point that matches
+     * this instance's [decodeMode].
+     */
+    fun drawFrame(frameIndex: Int, target: Bitmap = bitmap) {
+        when (decodeMode) {
+            DecodeMode.EAGER -> ApngDecoderJni.draw(id, frameIndex, target)
+            DecodeMode.ON_DEMAND -> ApngDecoderJni.drawStream(id, frameIndex, target)
+        }
+    }
 
     @Suppress("unused")
     fun finalize() {
@@ -101,7 +121,7 @@ internal class Apng(
      */
     fun drawWithIndex(frameIndex: Int, canvas: Canvas, src: Rect?, dst: Rect, paint: Paint) {
         Trace.beginSection("Apng#draw")
-        ApngDecoderJni.draw(id, frameIndex, bitmap)
+        drawFrame(frameIndex, bitmap)
         Trace.endSection()
         canvas.drawBitmap(bitmap, src, dst, paint)
     }
@@ -127,11 +147,14 @@ internal class Apng(
     companion object {
 
         @Throws(ApngException::class)
-        fun decode(stream: InputStream): Apng {
+        fun decode(stream: InputStream, decodeMode: DecodeMode = DecodeMode.EAGER): Apng {
             val result = DecodeResult()
             Trace.beginSection("Apng#decode")
             val id = try {
-                ApngDecoderJni.decode(stream, result)
+                when (decodeMode) {
+                    DecodeMode.EAGER -> ApngDecoderJni.decode(stream, result)
+                    DecodeMode.ON_DEMAND -> ApngDecoderJni.decodeStream(stream, result)
+                }
             } catch (e: Throwable) {
                 throw ApngException(e)
             } finally {
@@ -146,7 +169,8 @@ internal class Apng(
                     result.frameCount,
                     result.frameDurations,
                     result.loopCount,
-                    result.allFrameByteCount
+                    result.allFrameByteCount,
+                    decodeMode
                 )
             } catch (e: Throwable) {
                 throw ApngException(e)
@@ -167,7 +191,10 @@ internal class Apng(
             val result = DecodeResult()
             Trace.beginSection("Apng#copy")
             val id = try {
-                ApngDecoderJni.copy(apng.id, result)
+                when (apng.decodeMode) {
+                    DecodeMode.EAGER -> ApngDecoderJni.copy(apng.id, result)
+                    DecodeMode.ON_DEMAND -> ApngDecoderJni.copyStream(apng.id, result)
+                }
             } catch (e: Throwable) {
                 throw ApngException(e)
             } finally {
@@ -182,7 +209,8 @@ internal class Apng(
                     result.frameCount,
                     result.frameDurations,
                     result.loopCount,
-                    result.allFrameByteCount
+                    result.allFrameByteCount,
+                    apng.decodeMode
                 )
             } catch (e: Throwable) {
                 throw ApngException(e)
