@@ -32,6 +32,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +46,13 @@ import coil3.ImageLoader
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.linecorp.apng.decoder.DecodeMode
+import kotlinx.coroutines.delay
+
+/**
+ * Delay after a decode-mode switch before forcing GC, giving the previous mode's
+ * drawable time to be forgotten and the new one to decode.
+ */
+private const val SWITCH_GC_DELAY_MS = 600L
 
 /** The APNG assets bundled with this sample. */
 private val ASSETS = listOf(
@@ -76,14 +84,19 @@ fun ComposeSampleScreen(modifier: Modifier = Modifier) {
             .build()
     }
 
-    // When the mode flips, this loader is replaced. Clear its cache and nudge GC on
-    // dispose so the previous mode's frames are released before the stats are read,
-    // otherwise the old native frames linger and skew the comparison.
+    // When the mode flips, this loader is replaced. Clear its cache on dispose so the
+    // previous mode's frames lose their last strong reference.
     DisposableEffect(imageLoader) {
-        onDispose {
-            imageLoader.memoryCache?.clear()
-            System.gc()
-        }
+        onDispose { imageLoader.memoryCache?.clear() }
+    }
+
+    // The dispose above only drops the reference; the native frames are not reclaimed
+    // until the old ApngDrawable is finalized. Run GC a beat after the switch settles
+    // (old drawable forgotten, new one decoded) so the stats below reflect the new
+    // mode's footprint instead of lingering frames from the previous mode.
+    LaunchedEffect(decodeMode) {
+        delay(SWITCH_GC_DELAY_MS)
+        System.gc()
     }
 
     Column(
