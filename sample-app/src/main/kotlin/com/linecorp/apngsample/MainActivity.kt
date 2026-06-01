@@ -207,7 +207,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             DecodeMode.EAGER
         }
-        binding.textStatus.text = "isApng: $isApng, mode: $decodeMode"
+        binding.textStatus.text = "isApng: $isApng"
         if (isApng) {
             try {
                 drawable = ApngDrawable.decode(assets, name, width, height, decodeMode)
