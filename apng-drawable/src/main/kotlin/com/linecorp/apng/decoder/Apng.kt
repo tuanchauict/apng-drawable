@@ -65,15 +65,29 @@ internal class Apng(
      */
     val decodeMode: DecodeMode = DecodeMode.EAGER
 ) {
-    private val bitmap: Bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    /**
+     * Scratch frame buffer for [DecodeMode.EAGER], where [drawWithIndex] composes the
+     * current frame into it and blits to the canvas. [DecodeMode.ON_DEMAND] renders
+     * through its own ping-pong buffers in [com.linecorp.apng.ApngDrawable], so this
+     * bitmap (a full extra frame of resident memory) is never allocated there.
+     */
+    private val bitmap: Bitmap? = if (decodeMode == DecodeMode.EAGER) {
+        Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    } else {
+        null
+    }
 
     val byteCount: Int
-        get() = bitmap.allocationByteCount
+        get() = bitmap?.allocationByteCount ?: (width * height * BYTES_PER_PIXEL)
 
     init {
-        Trace.beginSection("Apng#draw")
-        drawFrame(0, bitmap)
-        Trace.endSection()
+        // ON_DEMAND composes frame 0 lazily through its own buffers on the first draw.
+        val target = bitmap
+        if (target != null) {
+            Trace.beginSection("Apng#draw")
+            drawFrame(0, target)
+            Trace.endSection()
+        }
     }
 
     /**
@@ -83,10 +97,10 @@ internal class Apng(
     val duration: Int = frameDurations.sum()
 
     val isRecycled: Boolean
-        get() = bitmap.isRecycled
+        get() = bitmap?.isRecycled ?: false
 
     val config: Bitmap.Config
-        get() = bitmap.config
+        get() = bitmap?.config ?: Bitmap.Config.ARGB_8888
 
     fun recycle() {
         when (decodeMode) {
@@ -101,7 +115,7 @@ internal class Apng(
      * Composes [frameIndex] into [target] using the JNI entry point that matches
      * this instance's [decodeMode].
      */
-    fun drawFrame(frameIndex: Int, target: Bitmap = bitmap) {
+    fun drawFrame(frameIndex: Int, target: Bitmap) {
         when (decodeMode) {
             DecodeMode.EAGER -> ApngDecoderJni.draw(id, frameIndex, target)
             DecodeMode.ON_DEMAND -> ApngDecoderJni.drawStream(id, frameIndex, target)
@@ -120,10 +134,13 @@ internal class Apng(
      * Draws specified frame to the [canvas].
      */
     fun drawWithIndex(frameIndex: Int, canvas: Canvas, src: Rect?, dst: Rect, paint: Paint) {
+        // Only EAGER draws through this scratch bitmap; ON_DEMAND blits via its own
+        // buffers in ApngDrawable and never calls here.
+        val target = bitmap ?: return
         Trace.beginSection("Apng#draw")
-        drawFrame(frameIndex, bitmap)
+        drawFrame(frameIndex, target)
         Trace.endSection()
-        canvas.drawBitmap(bitmap, src, dst, paint)
+        canvas.drawBitmap(target, src, dst, paint)
     }
 
     /**
@@ -145,6 +162,9 @@ internal class Apng(
     }
 
     companion object {
+
+        /** Bytes per pixel of an ARGB_8888 frame, used to size [byteCount] without a bitmap. */
+        private const val BYTES_PER_PIXEL = 4
 
         @Throws(ApngException::class)
         fun decode(stream: InputStream, decodeMode: DecodeMode = DecodeMode.EAGER): Apng {
