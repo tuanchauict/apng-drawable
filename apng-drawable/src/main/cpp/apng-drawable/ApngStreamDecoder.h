@@ -111,7 +111,7 @@ class ApngStreamDecoder {
   int32_t composeNext();        // advance the canvas by one frame
 
   // Do not copy this object.
-  ApngStreamDecoder(const ApngStreamDecoder &ref);
-  ApngStreamDecoder &operator=(const ApngStreamDecoder &ref);
+  ApngStreamDecoder(const ApngStreamDecoder &ref) = delete;
+  ApngStreamDecoder &operator=(const ApngStreamDecoder &ref) = delete;
 };
 }

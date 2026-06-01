@@ -21,7 +21,7 @@
 namespace apng_drawable {
 
 void saveFrame(uint32_t *destination,
-               uint32_t **source,
+               uint32_t **const source,
                uint32_t const width,
                uint32_t const height) {
   if (!destination) {

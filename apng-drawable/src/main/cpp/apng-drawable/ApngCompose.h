@@ -34,7 +34,7 @@ const size_t CHANNEL_4_BYTE_SIZE = sizeof(uint8_t) * 4;
  * straight alpha so subsequent frames can blend onto it correctly.
  */
 void saveFrame(uint32_t *destination,
-               uint32_t **source,
+               uint32_t **const source,
                uint32_t width,
                uint32_t height);
 

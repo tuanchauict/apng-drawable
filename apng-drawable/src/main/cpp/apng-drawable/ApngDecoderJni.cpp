@@ -431,7 +431,9 @@ Java_com_linecorp_apng_decoder_ApngDecoderJni_copyStream(
     srcMutex = it->second.mutex;
   }
 
-  // Clone = re-buffer the bytes + a fresh session (cheap; no N-frame copy).
+  // Clone = re-buffer the bytes + a fresh session. Memory stays ~constant (no
+  // N-frame copy), but create() runs the metadata pre-scan, which decodes every
+  // frame once, so this is O(N) in CPU/time despite the small footprint.
   std::vector<uint8_t> bytesCopy;
   {
     std::lock_guard<std::mutex> decodeLock(*srcMutex);
@@ -492,6 +494,10 @@ static bool readStreamFully(JNIEnv *env, jobject inputStream, std::vector<uint8_
     return false;
   }
   jmethodID readMethod = env->GetMethodID(is_class, "read", "([BII)I");
+  if (!readMethod) {
+    env->DeleteLocalRef(is_class);
+    return false;
+  }
   const jsize CHUNK = 64 * 1024;
   jbyteArray buffer = env->NewByteArray(CHUNK);
   if (!buffer) {
