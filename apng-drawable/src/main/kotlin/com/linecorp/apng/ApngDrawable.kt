@@ -445,9 +445,19 @@ class ApngDrawable @VisibleForTesting internal constructor(
      * promotes it to the front buffer and invalidates the drawable. [draw] always
      * blits the most recent ready frame, so the UI thread never blocks on decoding;
      * if the requested frame is not ready yet the previous frame is shown until the
-     * worker catches up. Because draws and swaps both run on the main thread while the
-     * worker only ever writes the back buffer, the two threads never touch the same
-     * bitmap concurrently.
+     * worker catches up.
+     *
+     * **Thread safety.** At most one decode is ever in flight: [busy] is set when a
+     * decode is dispatched and cleared only by its swap on the main thread. While
+     * [busy] is set, [ensure] refuses to dispatch another decode, so the worker is
+     * the sole writer of [backBitmap] for the whole window between dispatch and swap,
+     * and there is never more than one swap queued. The main thread only ever touches
+     * [frontBitmap] (in [draw]) and reassigns the references (in the swap, which runs
+     * while the worker is idle). The two threads therefore never touch the same
+     * bitmap concurrently. State other than [released] is confined to the main thread:
+     * [ensure] is only called from [draw], and the swap also runs on the main thread.
+     * Without this gate a second decode could overwrite [backBitmap] while an earlier
+     * frame's swap was still queued, promoting torn/locked pixels to the front.
      */
     private inner class OnDemandRenderer {
         private val frameWidth = apngState.apng.width
@@ -464,8 +474,8 @@ class ApngDrawable @VisibleForTesting internal constructor(
         /** Frame currently held by [frontBitmap], or -1 if nothing is decoded yet. */
         private var frontIndex = -1
 
-        /** Frame the worker is currently decoding, or -1 if idle. */
-        private var pendingIndex = -1
+        /** True while a decode is dispatched but its swap has not yet run. */
+        private var busy = false
 
         @Volatile
         private var released = false
@@ -478,10 +488,13 @@ class ApngDrawable @VisibleForTesting internal constructor(
         }
 
         private fun ensure(frameIndex: Int) {
-            if (released || frameIndex == frontIndex || frameIndex == pendingIndex) {
+            // Only one decode in flight: skip if busy or the frame is already shown.
+            // The next draw after the swap re-requests the latest frame, so we always
+            // converge on the current frame without ever overlapping decodes.
+            if (released || busy || frameIndex == frontIndex) {
                 return
             }
-            pendingIndex = frameIndex
+            busy = true
             worker.post { decodeInto(frameIndex) }
         }
 
@@ -490,20 +503,21 @@ class ApngDrawable @VisibleForTesting internal constructor(
             if (released) {
                 return
             }
-            // Compose the frame into the back buffer via the streaming decoder.
+            // Compose the frame into the back buffer via the streaming decoder. Safe to
+            // write unsynchronized: `busy` guarantees no swap is pending, so the main
+            // thread is not reading or reassigning this bitmap right now.
             apngState.apng.drawFrame(frameIndex, backBitmap)
             main.post {
                 if (released) {
                     return@post
                 }
-                if (pendingIndex == frameIndex) {
-                    pendingIndex = -1
-                }
-                // Promote the freshly decoded back buffer to the front.
+                // Promote the freshly decoded back buffer to the front, then release
+                // the gate so the next draw can dispatch the following frame.
                 val promoted = backBitmap
                 backBitmap = frontBitmap
                 frontBitmap = promoted
                 frontIndex = frameIndex
+                busy = false
                 invalidateSelf()
             }
         }
@@ -592,6 +606,7 @@ class ApngDrawable @VisibleForTesting internal constructor(
          * @throws IllegalArgumentException When only width or height was specified and When
          *                                  specified width or height is less than 0
          */
+        @JvmOverloads
         @WorkerThread
         @Throws(ApngException::class, Resources.NotFoundException::class, IOException::class)
         fun decode(
@@ -619,6 +634,7 @@ class ApngDrawable @VisibleForTesting internal constructor(
          * @throws IllegalArgumentException When only width or height was specified and When
          *                                  specified width or height is less than 0
          */
+        @JvmOverloads
         @WorkerThread
         @Throws(ApngException::class, IOException::class)
         fun decode(
@@ -651,6 +667,7 @@ class ApngDrawable @VisibleForTesting internal constructor(
          * @throws IllegalArgumentException When only width or height was specified and When
          *                                  specified width or height is less than 0
          */
+        @JvmOverloads
         @WorkerThread
         @Throws(ApngException::class, FileNotFoundException::class, IOException::class)
         fun decode(
@@ -675,6 +692,7 @@ class ApngDrawable @VisibleForTesting internal constructor(
          * @throws IllegalArgumentException When only width or height was specified and When
          *                                  specified width or height is less than 0
          */
+        @JvmOverloads
         @WorkerThread
         @Throws(ApngException::class, FileNotFoundException::class, IOException::class)
         fun decode(
@@ -702,6 +720,7 @@ class ApngDrawable @VisibleForTesting internal constructor(
          * @throws IllegalArgumentException When only width or height was specified and When
          *                                  specified width or height is less than 0
          */
+        @JvmOverloads
         @WorkerThread
         @Throws(ApngException::class)
         fun decode(
