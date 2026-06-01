@@ -20,4 +20,5 @@
     <string name="save_current_frame">Save current frame</string>
     <string name="seek_to_first">Seek to first</string>
     <string name="seek_to_end">Seek to End</string>
+    <string name="on_demand">On-demand</string>
 </resources>

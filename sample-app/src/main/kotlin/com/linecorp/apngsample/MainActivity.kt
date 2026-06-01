@@ -33,6 +33,7 @@ import androidx.vectordrawable.graphics.drawable.Animatable2Compat
 import com.linecorp.apng.ApngDrawable
 import com.linecorp.apng.RepeatAnimationCallback
 import com.linecorp.apng.decoder.ApngException
+import com.linecorp.apng.decoder.DecodeMode
 import com.linecorp.apngsample.databinding.ActivityMainBinding
 import com.linecorp.lich.lifecycle.AutoResetLifecycleScope
 import kotlinx.coroutines.CoroutineScope
@@ -101,10 +102,15 @@ class MainActivity : AppCompatActivity() {
         val isApng = assets.open(name).buffered().use {
             ApngDrawable.isApng(it)
         }
-        binding.textStatus.text = "isApng: $isApng"
+        val decodeMode = if (binding.switchOnDemand.isChecked) {
+            DecodeMode.ON_DEMAND
+        } else {
+            DecodeMode.EAGER
+        }
+        binding.textStatus.text = "isApng: $isApng, mode: $decodeMode"
         if (isApng) {
             try {
-                drawable = ApngDrawable.decode(assets, name, width, height)
+                drawable = ApngDrawable.decode(assets, name, width, height, decodeMode)
             } catch (e: ApngException) {
                 binding.textCallback.text = "Failed to decode: ${e.errorCode}"
                 return
