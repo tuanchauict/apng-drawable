@@ -1,228 +1,234 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".MainActivity">
-
-    <Switch
-        android:id="@+id/switch_on_demand"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/on_demand"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <TextView
-        android:id="@+id/text_img_1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/image_1"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/switch_on_demand" />
-
-    <HorizontalScrollView
-        android:id="@+id/scroll_load_apng_image"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/text_img_1">
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="4dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/button_load_image_1"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/load" />
-
-            <Button
-                android:id="@+id/button_load_image_1_5x"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/load_5x" />
-
-            <Button
-                android:id="@+id/button_load_image_1_10x"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/load_10x" />
-
-            <Button
-                android:id="@+id/button_load_large"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/load_large" />
-
-            <Button
-                android:id="@+id/button_mutate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/mutate" />
-
-            <Button
-                android:id="@+id/button_copy"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/copy" />
-
-            <Button
-                android:id="@+id/button_remove"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/remove" />
-
-        </LinearLayout>
-
-    </HorizontalScrollView>
-
-    <TextView
-        android:id="@+id/text_img_2"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/not_apng"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/scroll_load_apng_image" />
-
-    <HorizontalScrollView
-        android:id="@+id/scroll_load_non_apng_image"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/text_img_2">
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="4dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/button_load_image_2_normal_png"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/normal_png" />
-
-            <Button
-                android:id="@+id/button_load_image_2_jpeg"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/jpeg" />
-        </LinearLayout>
-
-    </HorizontalScrollView>
-
-    <TextView
-        android:id="@+id/text_commands"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/commands"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/scroll_load_non_apng_image" />
-
-    <HorizontalScrollView
-        android:id="@+id/scroll_commands"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/text_commands">
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="4dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/button_start"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/start" />
-
-            <Button
-                android:id="@+id/button_stop"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/stop" />
-
-            <Button
-                android:id="@+id/button_seek_start"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/seek_to_first" />
-
-            <Button
-                android:id="@+id/button_seek_end"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/seek_to_end" />
-
-            <Button
-                android:id="@+id/button_gc"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/run_gc" />
-
-            <Button
-                android:id="@+id/button_save_current_frame"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/save_current_frame" />
-
-        </LinearLayout>
-
-    </HorizontalScrollView>
-
-
-    <TextView
-        android:id="@+id/text_status"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        app:layout_constraintEnd_toStartOf="@id/text_callback"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/scroll_commands"
-        tools:text="@tools:sample/lorem" />
-
-    <TextView
-        android:id="@+id/text_callback"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/text_status"
-        app:layout_constraintTop_toTopOf="@id/text_status"
-        tools:text="@tools:sample/lorem" />
-
-    <TextView
-        android:id="@+id/text_stats"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:background="#11000000"
-        android:fontFamily="monospace"
-        android:padding="8dp"
-        android:textColor="#222222"
-        android:textSize="13sp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/text_status"
-        tools:text="MODE: EAGER        frame 1 / 120\nNative heap :   78.4 MB   ← APNG frames live here\nJava heap   :   12.1 MB\nCPU         :    23 %   (100% = 1 of 8 cores)" />
-
-    <ImageView
-        android:id="@+id/imageView"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_alignParentStart="true"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/text_stats"
-        tools:ignore="ContentDescription" />
+        android:layout_height="match_parent"
+        tools:context=".MainActivity">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+    <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="16dp"
+            android:orientation="vertical">
+
+        <TextView
+                android:id="@+id/text_img_1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/image_1"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/switch_on_demand" />
+
+        <HorizontalScrollView
+                android:id="@+id/scroll_load_apng_image"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/text_img_1">
+
+            <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="4dp"
+                    android:orientation="horizontal">
+
+                <Button
+                        android:id="@+id/button_load_image_1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/load" />
+
+                <Button
+                        android:id="@+id/button_load_image_1_5x"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/load_5x" />
+
+                <Button
+                        android:id="@+id/button_load_image_1_10x"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/load_10x" />
+
+                <Button
+                        android:id="@+id/button_load_large"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/load_large" />
+
+                <Button
+                        android:id="@+id/button_mutate"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/mutate" />
+
+                <Button
+                        android:id="@+id/button_copy"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/copy" />
+
+                <Button
+                        android:id="@+id/button_remove"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/remove" />
+
+            </LinearLayout>
+
+        </HorizontalScrollView>
+        <Switch
+                android:id="@+id/switch_on_demand"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/on_demand"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+                android:id="@+id/text_img_2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/not_apng"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/scroll_load_apng_image" />
+
+        <HorizontalScrollView
+                android:id="@+id/scroll_load_non_apng_image"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/text_img_2">
+
+            <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="4dp"
+                    android:orientation="horizontal">
+
+                <Button
+                        android:id="@+id/button_load_image_2_normal_png"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/normal_png" />
+
+                <Button
+                        android:id="@+id/button_load_image_2_jpeg"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/jpeg" />
+            </LinearLayout>
+
+        </HorizontalScrollView>
+
+        <TextView
+                android:id="@+id/text_commands"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/commands"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/scroll_load_non_apng_image" />
+
+        <HorizontalScrollView
+                android:id="@+id/scroll_commands"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/text_commands">
+
+            <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="4dp"
+                    android:orientation="horizontal">
+
+                <Button
+                        android:id="@+id/button_start"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/start" />
+
+                <Button
+                        android:id="@+id/button_stop"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/stop" />
+
+                <Button
+                        android:id="@+id/button_seek_start"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/seek_to_first" />
+
+                <Button
+                        android:id="@+id/button_seek_end"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/seek_to_end" />
+
+                <Button
+                        android:id="@+id/button_gc"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/run_gc" />
+
+                <Button
+                        android:id="@+id/button_save_current_frame"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/save_current_frame" />
+
+            </LinearLayout>
+
+        </HorizontalScrollView>
+
+
+        <TextView
+                android:id="@+id/text_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:layout_constraintEnd_toStartOf="@id/text_callback"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/scroll_commands"
+                tools:text="@tools:sample/lorem" />
+
+        <TextView
+                android:id="@+id/text_callback"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/text_status"
+                app:layout_constraintTop_toTopOf="@id/text_status"
+                tools:text="@tools:sample/lorem" />
+
+        <TextView
+                android:id="@+id/text_stats"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#11000000"
+                android:fontFamily="monospace"
+                android:padding="8dp"
+                android:textColor="#222222"
+                android:textSize="13sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/text_status"
+                tools:text="MODE: EAGER        frame 1 / 120\nNative heap :   78.4 MB   ← APNG frames live here\nJava heap   :   12.1 MB\nCPU         :    23 %   (100% = 1 of 8 cores)" />
+
+        <ImageView
+                android:id="@+id/imageView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="200dp"
+                android:layout_alignParentStart="true"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/text_stats"
+                tools:ignore="ContentDescription" />
+    </LinearLayout>
+</ScrollView>
