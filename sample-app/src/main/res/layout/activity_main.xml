@@ -6,13 +6,21 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
+    <Switch
+        android:id="@+id/switch_on_demand"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/on_demand"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <TextView
         android:id="@+id/text_img_1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/image_1"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/switch_on_demand" />
 
     <HorizontalScrollView
         android:id="@+id/scroll_load_apng_image"
@@ -69,13 +77,6 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/remove" />
-
-            <Switch
-                android:id="@+id/switch_on_demand"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical"
-                android:text="@string/on_demand" />
 
         </LinearLayout>
 
