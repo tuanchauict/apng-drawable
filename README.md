@@ -59,6 +59,33 @@ val drawable3 = ApngDrawable.decode(context.resources, R.raw.apng_image)
 
 You can find a more advanced way of using the library from the [example](https://github.com/line/apng-drawable/tree/master/sample-app).
 
+## Decode modes
+
+Every `decode` overload accepts an optional `decodeMode` that controls how frames
+are produced in the native layer:
+
+| Mode | Memory | Drawing / seeking | Best for |
+| --- | --- | --- | --- |
+| `DecodeMode.EAGER` (default) | All frames composed up front: `frames × width × height × 4` bytes | O(1) — a copy of a pre-composed frame | Small or short APNGs |
+| `DecodeMode.ON_DEMAND` | Roughly constant in the frame count (a single composition canvas plus the buffered encoded bytes) | Forward playback decodes one frame per displayed frame; backward seeks are O(target) because APNG frames are deltas replayed from the start | Large or many-frame APNGs |
+
+`EAGER` is the default and keeps the original behavior. Opt into streaming for
+large images:
+
+```kotlin
+import com.linecorp.apng.decoder.DecodeMode
+
+// Decode a large/many-frame APNG with roughly constant memory.
+val drawable = ApngDrawable.decode(
+    context.resources,
+    R.raw.large_apng_image,
+    decodeMode = DecodeMode.ON_DEMAND
+)
+```
+
+The sample app exposes an **On-demand** toggle and an on-screen memory/CPU panel
+so you can compare the two modes side by side.
+
 ## How to build
 
 Note: This operation is necessary when building from code. It's not necessary if you are reading using `implementation` as shown in "[How to use]".
