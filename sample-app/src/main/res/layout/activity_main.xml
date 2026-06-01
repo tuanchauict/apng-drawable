@@ -203,12 +203,15 @@
         android:id="@+id/text_stats"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:background="#11000000"
         android:fontFamily="monospace"
-        android:textSize="12sp"
+        android:padding="8dp"
+        android:textColor="#222222"
+        android:textSize="13sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/text_status"
-        tools:text="native 0.0 MB  java 0.0 MB\ncpu 0%  frame 0/0" />
+        tools:text="MODE: EAGER        frame 1 / 120\nNative heap :   78.4 MB   ← APNG frames live here\nJava heap   :   12.1 MB\nCPU         :    23 %   (100% = 1 of 8 cores)" />
 
     <ImageView
         android:id="@+id/imageView"

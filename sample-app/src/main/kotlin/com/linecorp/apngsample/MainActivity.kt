@@ -55,6 +55,11 @@ class MainActivity : AppCompatActivity() {
 
     private var drawable: ApngDrawable? = null
 
+    // Remember the last load so toggling the decode mode can re-run it.
+    private var lastLoadName: String? = null
+    private var lastLoadWidth: Int? = null
+    private var lastLoadHeight: Int? = null
+
     // --- Resource stats sampling ---
     private val statsHandler = Handler(Looper.getMainLooper())
     private val clockTicksPerSecond = Os.sysconf(OsConstants._SC_CLK_TCK)
@@ -110,6 +115,23 @@ class MainActivity : AppCompatActivity() {
         binding.buttonSeekEnd.setOnClickListener { seekTo(10000000L) }
         binding.buttonSaveCurrentFrame.setOnClickListener { exportCurrentFrame() }
         binding.buttonRemove.setOnClickListener { removeView() }
+
+        // Flipping the decode mode reloads the current image so the stats below
+        // reflect the new mode. The old drawable is recycled and GC is forced
+        // first, otherwise its native frames linger and skew the comparison.
+        binding.switchOnDemand.setOnCheckedChangeListener { _, _ ->
+            val name = lastLoadName ?: return@setOnCheckedChangeListener
+            releaseCurrentDrawable()
+            System.gc()
+            startLoad(name, lastLoadWidth, lastLoadHeight)
+        }
+    }
+
+    private fun releaseCurrentDrawable() {
+        binding.imageView.setImageDrawable(null)
+        drawable?.clearAnimationCallbacks()
+        drawable?.recycle()
+        drawable = null
     }
 
     override fun onResume() {
@@ -142,14 +164,18 @@ class MainActivity : AppCompatActivity() {
 
         val d = drawable
         val frameInfo = if (d != null) {
-            "frame ${d.currentFrameIndex + 1}/${d.frameCount}"
+            "frame ${d.currentFrameIndex + 1} / ${d.frameCount}"
         } else {
-            "no image"
+            "no image loaded"
         }
         val mode = if (binding.switchOnDemand.isChecked) "ON_DEMAND" else "EAGER"
 
-        binding.textStats.text = "native %.1f MB   java %.1f MB\ncpu %.0f%% (of %d cores)   %s   %s"
-            .format(nativeMb, javaMb, cpuPercent, cpuCount, mode, frameInfo)
+        binding.textStats.text = (
+            "MODE: %s        %s\n" +
+            "Native heap : %6.1f MB   ← APNG frames live here\n" +
+            "Java heap   : %6.1f MB\n" +
+            "CPU         : %5.0f %%   (100%% = 1 of %d cores)"
+            ).format(mode, frameInfo, nativeMb, javaMb, cpuPercent, cpuCount)
     }
 
     /** utime + stime of this process, in clock ticks, from /proc/self/stat. */
@@ -166,10 +192,12 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetTextI18n")
     private fun startLoad(name: String, width: Int? = null, height: Int? = null) {
-        //drawable?.recycle()
-        drawable?.clearAnimationCallbacks()
-        drawable = null
-        binding.imageView.setImageDrawable(null)
+        lastLoadName = name
+        lastLoadWidth = width
+        lastLoadHeight = height
+        // Free the previous image's native frames so the stats reflect only this
+        // load rather than the previous one lingering until GC.
+        releaseCurrentDrawable()
         binding.textCallback.text = null
         val isApng = assets.open(name).buffered().use {
             ApngDrawable.isApng(it)
