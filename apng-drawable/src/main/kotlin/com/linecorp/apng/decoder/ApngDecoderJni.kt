@@ -39,4 +39,20 @@ internal object ApngDecoderJni {
 
     @JvmStatic
     external fun copy(id: Int, result: Apng.DecodeResult): Int
+
+    // --- On-demand (streaming) decoding ---
+    // These mirror the eager entry points but are backed by ApngStreamDecoder,
+    // which composes one frame at a time for ~constant memory.
+
+    @JvmStatic
+    external fun decodeStream(inputStream: InputStream, result: Apng.DecodeResult): Int
+
+    @JvmStatic
+    external fun recycleStream(id: Int): Int
+
+    @JvmStatic
+    external fun drawStream(id: Int, index: Int, bitmap: Bitmap)
+
+    @JvmStatic
+    external fun copyStream(id: Int, result: Apng.DecodeResult): Int
 }

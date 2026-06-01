@@ -36,6 +36,15 @@ androidx-constraintlayout = "2.2.0"
 # https://developer.android.com/jetpack/androidx/releases/vectordrawable
 androidx-vectordrawable = "1.2.0"
 
+# https://developer.android.com/jetpack/androidx/releases/activity
+androidx-activity-compose = "1.9.3"
+
+# https://developer.android.com/jetpack/compose/bom/bom-mapping
+androidx-compose-bom = "2024.09.03"
+
+# https://github.com/coil-kt/coil/releases
+coil = "3.0.4"
+
 # https://github.com/Kotlin/kotlinx.coroutines/releases
 kotlinx-coroutines = "1.8.1"
 
@@ -67,11 +76,20 @@ robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "
 mockito = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
 mockito-kotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockito-kotlin" }
 
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "androidx-activity-compose" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "androidx-compose-bom" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+
 [plugins]
 
 android-application = { id = "com.android.application", version.ref = "android-gradle-plugin" }
 android-library = { id = "com.android.library", version.ref = "android-gradle-plugin" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 nexus-staging = { id = "io.codearte.nexus-staging", version.ref = "nexus-staging" }
 ktlint-gradle = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint-gradle" }
 dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }

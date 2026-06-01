@@ -21,97 +21,10 @@
 #include "png.h"
 #include "Error.h"
 #include "StreamSource.h"
+#include "ApngCompose.h"
 #include "Log.h"
 
 namespace apng_drawable {
-
-const uint8_t ALPHA_TRANSPARENT = 0U;
-const uint8_t ALPHA_OPAQUE = 0xFFU;
-const size_t CHANNEL_4_BYTE_SIZE = sizeof(uint8_t) * 4;
-
-inline void saveFrame(uint32_t *destination,
-                      uint32_t **const source,
-                      uint32_t const width,
-                      uint32_t const height) {
-  if (!destination) {
-    return;
-  }
-  uint_fast8_t alpha;
-  uint32_t src_color;
-  // default
-  for (uint32_t j = 0; j < height; ++j, destination += width) {
-    memcpy(destination, source[j], width * CHANNEL_4_BYTE_SIZE);
-    for (uint32_t i = 0; i < width; ++i) {
-      // pre multiply color
-      src_color = destination[i];
-      alpha = static_cast<uint_fast8_t>((src_color >> 24U) & 0xFFU);
-      if (alpha == ALPHA_TRANSPARENT) {
-        // transparent
-        destination[i] = 0;
-        continue;
-      }
-      if (alpha == ALPHA_OPAQUE) {
-        // opaque
-        continue;
-      }
-      // translucent
-      destination[i] = abgr(
-          alpha,
-          div255Round(src_color >> 16U & 0xFFU, alpha),
-          div255Round(src_color >> 8U & 0xFFU, alpha),
-          div255Round(src_color & 0xFFU, alpha));
-    }
-  }
-}
-
-inline void blendOver(
-    uint8_t **destination,
-    uint8_t **const source,
-    const png_uint_32 x_offset,
-    const png_uint_32 y_offset,
-    const png_uint_32 width,
-    const png_uint_32 height
-) {
-  for (uint32_t j = 0; j < height; ++j) {
-    uint8_t *sp = source[j];
-    uint8_t *dp = destination[j + y_offset] + x_offset * CHANNEL_4_BYTE_SIZE;
-    uint8_t sourceAlpha;
-    for (uint32_t i = 0; i < width; ++i, sp += CHANNEL_4_BYTE_SIZE, dp += CHANNEL_4_BYTE_SIZE) {
-      sourceAlpha = sp[3];
-      if (sourceAlpha == ALPHA_OPAQUE) {
-        memcpy(dp, sp, CHANNEL_4_BYTE_SIZE);
-      } else if (sourceAlpha != ALPHA_TRANSPARENT) {
-        if (dp[3] != ALPHA_TRANSPARENT) {
-          int32_t u = sourceAlpha * ALPHA_OPAQUE;
-          int32_t v = (ALPHA_OPAQUE - sourceAlpha) * dp[3];
-          int32_t al =
-              ALPHA_OPAQUE * ALPHA_OPAQUE - (ALPHA_OPAQUE - sourceAlpha) * (ALPHA_OPAQUE - dp[3]);
-          dp[0] = static_cast<uint8_t>((sp[0] * u + dp[0] * v) / al);
-          dp[1] = static_cast<uint8_t>((sp[1] * u + dp[1] * v) / al);
-          dp[2] = static_cast<uint8_t>((sp[2] * u + dp[2] * v) / al);
-          dp[3] = static_cast<uint8_t>(al / ALPHA_OPAQUE);
-        } else {
-          memcpy(dp, sp, CHANNEL_4_BYTE_SIZE);
-        }
-      }
-    }
-  }
-}
-
-inline void blendSource(
-    uint8_t **destination,
-    uint8_t **const source,
-    png_uint_32 x_offset,
-    png_uint_32 y_offset,
-    png_uint_32 width,
-    png_uint_32 height
-) {
-  for (uint32_t j = 0; j < height; j++) {
-    memcpy(destination[j + y_offset] + x_offset * CHANNEL_4_BYTE_SIZE,
-           source[j],
-           width * CHANNEL_4_BYTE_SIZE);
-  }
-}
 
 std::unique_ptr<ApngImage> ApngDecoder::decode(
     std::unique_ptr<StreamSource> source,
@@ -299,39 +212,21 @@ std::unique_ptr<ApngImage> ApngDecoder::decode(
     // Read fdAT or IDAT
     png_read_image(png_ptr, rows_buffer.get());
 
-    // Process dispose operation
-    if (dispose_op == PNG_DISPOSE_OP_PREVIOUS) {
-      memcpy(p_previous_frame.get(), p_frame.get(), size);
-    }
-
-    // Process blend operation
-    if (blend_op == PNG_BLEND_OP_OVER) {
-      blendOver(rows_frame.get(), rows_buffer.get(), x_offset, y_offset, frame_width, frame_height);
-    } else { // PNG_BLEND_OP_SOURCE
-      blendSource(rows_frame.get(),
-                  rows_buffer.get(),
-                  x_offset,
-                  y_offset,
-                  frame_width,
-                  frame_height);
-    }
-
-    // Save frame
-    saveFrame(
-        frame->getRawPixels(), reinterpret_cast<uint32_t **const>(rows_frame.get()),
-        width,
-        height);
-
-    // Process dispose operation after decode frame
-    if (dispose_op == PNG_DISPOSE_OP_PREVIOUS) {
-      memcpy(p_frame.get(), p_previous_frame.get(), size);
-    } else if (dispose_op == PNG_DISPOSE_OP_BACKGROUND) {
-      for (uint32_t j = 0; j < frame_height; j++) {
-        memset(rows_frame[j + y_offset] + x_offset * CHANNEL_4_BYTE_SIZE,
-               0,
-               frame_width * CHANNEL_4_BYTE_SIZE);
-      }
-    }
+    // Composite this frame into the running canvas (shared with the streaming decoder)
+    composeFrame(rows_frame.get(),
+                 rows_buffer.get(),
+                 p_frame.get(),
+                 p_previous_frame.get(),
+                 frame->getRawPixels(),
+                 width,
+                 height,
+                 x_offset,
+                 y_offset,
+                 frame_width,
+                 frame_height,
+                 dispose_op,
+                 blend_op,
+                 size);
     png->setFrame(i, std::move(frame));
   }
 
