@@ -31,6 +31,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,6 +74,16 @@ fun ComposeSampleScreen(modifier: Modifier = Modifier) {
         ImageLoader.Builder(context)
             .components { add(ApngCoilDecoder.Factory(decodeMode)) }
             .build()
+    }
+
+    // When the mode flips, this loader is replaced. Clear its cache and nudge GC on
+    // dispose so the previous mode's frames are released before the stats are read,
+    // otherwise the old native frames linger and skew the comparison.
+    DisposableEffect(imageLoader) {
+        onDispose {
+            imageLoader.memoryCache?.clear()
+            System.gc()
+        }
     }
 
     Column(
@@ -136,6 +147,10 @@ fun ComposeSampleScreen(modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.bodyMedium,
             fontFamily = FontFamily.Monospace,
         )
+
+        Spacer(Modifier.height(12.dp))
+
+        ResourceStatsPanel(modifier = Modifier.fillMaxWidth())
 
         Spacer(Modifier.height(16.dp))
 
