@@ -17,9 +17,11 @@
 #include <jni.h>
 #include <unordered_map>
 #include <mutex>
+#include <vector>
 #include <android/bitmap.h>
 #include "Log.h"
 #include "ApngDecoder.h"
+#include "ApngStreamDecoder.h"
 #include "Error.h"
 
 #include "StreamSource.h"
@@ -30,6 +32,18 @@
 namespace apng_drawable {
 
 static std::unordered_map<int32_t, std::shared_ptr<ApngImage>> gImageMap;
+
+/**
+ * A streaming decoder plus its own mutex. `gLock` only guards the map itself;
+ * decode/draw work on a decoder is serialized by the per-entry mutex, so a slow
+ * decode on one image never blocks lookups or other images.
+ */
+struct StreamEntry {
+  std::shared_ptr<ApngStreamDecoder> decoder;
+  std::shared_ptr<std::mutex> mutex;
+};
+
+static std::unordered_map<int32_t, StreamEntry> gStreamMap;
 static std::mutex gLock;
 static uint32_t gIdCounter;
 
@@ -44,6 +58,14 @@ static jfieldID gResult_allFrameByteCountFieldID;
 void copyFrameDurations(JNIEnv *env,
                         const std::shared_ptr<ApngImage> &image,
                         jintArray &frame_durations_ptr);
+
+static bool readStreamFully(JNIEnv *env, jobject inputStream, std::vector<uint8_t> &out);
+static void copyStreamDurations(JNIEnv *env,
+                                const std::shared_ptr<ApngStreamDecoder> &decoder,
+                                jintArray frame_durations_ptr);
+static void setStreamResultFields(JNIEnv *env,
+                                  jobject result,
+                                  const std::shared_ptr<ApngStreamDecoder> &decoder);
 
 extern "C" {
 #pragma clang diagnostic push
@@ -84,10 +106,8 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
   gResult_class = nullptr;
   StreamSource::unregisterJavaClass(env);
 
-  auto it = gImageMap.begin();
-  for (; it != gImageMap.end(); ++it) {
-    gImageMap.erase(it);
-  }
+  gImageMap.clear();
+  gStreamMap.clear();
 }
 
 JNIEXPORT jint JNICALL
@@ -278,6 +298,176 @@ Java_com_linecorp_apng_decoder_ApngDecoderJni_copy(
   return resultId;
 }
 
+JNIEXPORT jint JNICALL
+Java_com_linecorp_apng_decoder_ApngDecoderJni_decodeStream(
+    JNIEnv *env,
+    jclass thiz,
+    jobject inputStream,
+    jobject result
+) {
+  LOGV("decodeStream start");
+  std::vector<uint8_t> encoded;
+  if (!readStreamFully(env, inputStream, encoded)) {
+    return ERR_STREAM_READ_FAIL;
+  }
+
+  int32_t resultCode;
+  std::shared_ptr<ApngStreamDecoder> decoder =
+      ApngStreamDecoder::create(std::move(encoded), resultCode);
+  LOGV(" | decodeStream result: %d", resultCode);
+  if (resultCode != SUCCESS) {
+    return resultCode;
+  }
+
+  setStreamResultFields(env, result, decoder);
+  {
+    jintArray frame_durations = env->NewIntArray(decoder->getFrameCount());
+    if (!frame_durations) {
+      return ERR_OUT_OF_MEMORY;
+    }
+    copyStreamDurations(env, decoder, frame_durations);
+    env->SetObjectField(result, gResult_frameDurationsFieldID, frame_durations);
+    env->DeleteLocalRef(frame_durations);
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(gLock);
+    gIdCounter++;
+    StreamEntry entry{std::move(decoder), std::make_shared<std::mutex>()};
+    gStreamMap.emplace(gIdCounter, std::move(entry));
+    resultCode = gIdCounter;
+    LOGV(" | total streams: %ld", gStreamMap.size());
+  }
+  LOGV("decodeStream end");
+  return resultCode;
+}
+
+JNIEXPORT void JNICALL
+Java_com_linecorp_apng_decoder_ApngDecoderJni_drawStream(
+    JNIEnv *env,
+    jclass thiz,
+    jint id,
+    jint index,
+    jobject bitmap
+) {
+  if (id < 0 || index < 0) {
+    return;
+  }
+
+  std::shared_ptr<ApngStreamDecoder> decoder;
+  std::shared_ptr<std::mutex> entryMutex;
+  {
+    std::lock_guard<std::mutex> lock(gLock);
+    auto const &it = gStreamMap.find(id);
+    if (it != gStreamMap.end()) {
+      decoder = it->second.decoder;
+      entryMutex = it->second.mutex;
+    }
+  }
+  if (!decoder) {
+    return;
+  }
+
+  void *data;
+  int32_t result;
+  if ((result = AndroidBitmap_lockPixels(env, bitmap, &data)) < 0) {
+    LOGE("Error in AndroidBitmap_lockPixels. errorCode: %d", result);
+    return;
+  }
+
+  {
+    // Serialize seek/compose on this decoder; decode may run off the UI thread.
+    std::lock_guard<std::mutex> decodeLock(*entryMutex);
+    if (decoder->seekTo(static_cast<uint32_t>(index)) == SUCCESS) {
+      decoder->blitInto(reinterpret_cast<uint32_t *>(data));
+    }
+  }
+
+  AndroidBitmap_unlockPixels(env, bitmap);
+}
+
+JNIEXPORT jint JNICALL
+Java_com_linecorp_apng_decoder_ApngDecoderJni_recycleStream(
+    JNIEnv *env,
+    jclass thiz,
+    jint id
+) {
+  LOGV("recycleStream start. id : %d", id);
+  if (id < 0) {
+    return ERR_NOT_EXIST_IMAGE;
+  }
+  std::lock_guard<std::mutex> lock(gLock);
+  auto const &it = gStreamMap.find(id);
+  if (it == gStreamMap.end()) {
+    return ERR_NOT_EXIST_IMAGE;
+  }
+  gStreamMap.erase(it);
+  LOGV(" | removed from stream map. remaining: %ld", gStreamMap.size());
+  LOGV("recycleStream end");
+  return SUCCESS;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_linecorp_apng_decoder_ApngDecoderJni_copyStream(
+    JNIEnv *env,
+    jclass thiz,
+    jint id,
+    jobject result
+) {
+  LOGV("copyStream start. id : %d", id);
+  if (id < 0) {
+    return ERR_NOT_EXIST_IMAGE;
+  }
+
+  std::shared_ptr<ApngStreamDecoder> src;
+  std::shared_ptr<std::mutex> srcMutex;
+  {
+    std::lock_guard<std::mutex> lock(gLock);
+    auto const &it = gStreamMap.find(id);
+    if (it == gStreamMap.end()) {
+      return ERR_NOT_EXIST_IMAGE;
+    }
+    src = it->second.decoder;
+    srcMutex = it->second.mutex;
+  }
+
+  // Clone = re-buffer the bytes + a fresh session (cheap; no N-frame copy).
+  std::vector<uint8_t> bytesCopy;
+  {
+    std::lock_guard<std::mutex> decodeLock(*srcMutex);
+    bytesCopy = src->getEncoded();
+  }
+
+  int32_t resultCode;
+  std::shared_ptr<ApngStreamDecoder> copy =
+      ApngStreamDecoder::create(std::move(bytesCopy), resultCode);
+  if (resultCode != SUCCESS) {
+    return resultCode;
+  }
+
+  setStreamResultFields(env, result, copy);
+  {
+    jintArray frame_durations = env->NewIntArray(copy->getFrameCount());
+    if (!frame_durations) {
+      return ERR_OUT_OF_MEMORY;
+    }
+    copyStreamDurations(env, copy, frame_durations);
+    env->SetObjectField(result, gResult_frameDurationsFieldID, frame_durations);
+    env->DeleteLocalRef(frame_durations);
+  }
+
+  int32_t resultId;
+  {
+    std::lock_guard<std::mutex> lock(gLock);
+    resultId = ++gIdCounter;
+    StreamEntry entry{std::move(copy), std::make_shared<std::mutex>()};
+    gStreamMap.emplace(resultId, std::move(entry));
+    LOGV(" | total streams: %ld", gStreamMap.size());
+  }
+  LOGV("copyStream end");
+  return resultId;
+}
+
 #pragma clang diagnostic pop
 }
 
@@ -294,6 +484,66 @@ void copyFrameDurations(JNIEnv *env,
     frame_durations_array[i] = frame->getDuration();
   }
   env->ReleaseIntArrayElements(frame_durations_ptr, frame_durations_array, 0);
+}
+
+static bool readStreamFully(JNIEnv *env, jobject inputStream, std::vector<uint8_t> &out) {
+  jclass is_class = env->FindClass("java/io/InputStream");
+  if (!is_class) {
+    return false;
+  }
+  jmethodID readMethod = env->GetMethodID(is_class, "read", "([BII)I");
+  const jsize CHUNK = 64 * 1024;
+  jbyteArray buffer = env->NewByteArray(CHUNK);
+  if (!buffer) {
+    env->DeleteLocalRef(is_class);
+    return false;
+  }
+
+  bool ok = true;
+  while (true) {
+    jint read = env->CallIntMethod(inputStream, readMethod, buffer, 0, CHUNK);
+    if (env->ExceptionOccurred()) {
+      env->ExceptionClear();
+      ok = false;
+      break;
+    }
+    if (read < 0) {
+      break; // EOF
+    }
+    if (read == 0) {
+      continue;
+    }
+    size_t old_size = out.size();
+    out.resize(old_size + static_cast<size_t>(read));
+    env->GetByteArrayRegion(buffer, 0, read, reinterpret_cast<jbyte *>(out.data() + old_size));
+  }
+
+  env->DeleteLocalRef(buffer);
+  env->DeleteLocalRef(is_class);
+  return ok;
+}
+
+static void copyStreamDurations(JNIEnv *env,
+                                const std::shared_ptr<ApngStreamDecoder> &decoder,
+                                jintArray frame_durations_ptr) {
+  const std::vector<uint32_t> &durations = decoder->getDurations();
+  jint *frame_durations_array = env->GetIntArrayElements(frame_durations_ptr, nullptr);
+  for (size_t i = 0; i < durations.size(); ++i) {
+    frame_durations_array[i] = static_cast<jint>(durations[i]);
+  }
+  env->ReleaseIntArrayElements(frame_durations_ptr, frame_durations_array, 0);
+}
+
+static void setStreamResultFields(JNIEnv *env,
+                                  jobject result,
+                                  const std::shared_ptr<ApngStreamDecoder> &decoder) {
+  env->SetIntField(result, gResult_widthFieldID, decoder->getWidth());
+  env->SetIntField(result, gResult_heightFieldID, decoder->getHeight());
+  env->SetIntField(result, gResult_frameCountFieldID, decoder->getFrameCount());
+  env->SetIntField(result, gResult_repeatCountFieldID, decoder->getLoopCount());
+  env->SetLongField(result,
+                    gResult_allFrameByteCountFieldID,
+                    static_cast<jlong>(decoder->getAllFrameByteCount()));
 }
 
 }

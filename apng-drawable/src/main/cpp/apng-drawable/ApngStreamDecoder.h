@@ -59,6 +59,9 @@ class ApngStreamDecoder {
   uint32_t getLoopCount() const { return mLoopCount; }
   const std::vector<uint32_t> &getDurations() const { return mDurations; }
 
+  /** The buffered encoded APNG bytes, used to clone the decoder (`copyStream`). */
+  const std::vector<uint8_t> &getEncoded() const { return mEncoded; }
+
   uint32_t getFrameByteCount() const { return sizeof(uint32_t) * mWidth * mHeight; }
 
   /**
