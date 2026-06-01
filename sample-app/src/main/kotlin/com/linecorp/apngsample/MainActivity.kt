@@ -78,6 +78,7 @@ class MainActivity : AppCompatActivity() {
         binding.buttonLoadImage1.setOnClickListener { startLoad("test.png") }
         binding.buttonLoadImage15x.setOnClickListener { startLoad("test.png", 500, 500) }
         binding.buttonLoadImage110x.setOnClickListener { startLoad("test.png", 1000, 1000) }
+        binding.buttonLoadLarge.setOnClickListener { startLoad("large_anim.png") }
         binding.buttonLoadImage2NormalPng.setOnClickListener { startLoad("normal_png.png") }
         binding.buttonLoadImage2Jpeg.setOnClickListener { startLoad("jpeg.jpg") }
         binding.buttonMutate.setOnClickListener { mutate() }
