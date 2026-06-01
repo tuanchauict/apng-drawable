@@ -1,0 +1,4 @@
+<resources>
+    <!-- Compose draws the whole UI; a plain no-action-bar framework theme is enough. -->
+    <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+</resources>
