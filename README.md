@@ -72,6 +72,12 @@ are produced in the native layer:
 `EAGER` is the default and keeps the original behavior. Opt into streaming for
 large images:
 
+> **Note:** `ON_DEMAND` trades **resident memory**, not **decode time**. The
+> initial `decode()` still walks every frame once (libpng must read each frame's
+> data to reach the next `fcTL`), so its CPU/latency cost is similar to `EAGER`;
+> the win is that frames are not kept resident afterwards. Likewise, copying an
+> `ON_DEMAND` drawable re-scans all frames, so it is O(frames) in CPU.
+
 ```kotlin
 import com.linecorp.apng.decoder.DecodeMode
 
