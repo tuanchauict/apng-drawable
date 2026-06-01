@@ -24,7 +24,13 @@ import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Debug
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.provider.MediaStore
+import android.system.Os
+import android.system.OsConstants
 import android.util.Log
 import android.widget.ImageView
 import android.widget.Toast
@@ -48,6 +54,19 @@ class MainActivity : AppCompatActivity() {
     private val lifecycleScope: CoroutineScope = AutoResetLifecycleScope(this)
 
     private var drawable: ApngDrawable? = null
+
+    // --- Resource stats sampling ---
+    private val statsHandler = Handler(Looper.getMainLooper())
+    private val clockTicksPerSecond = Os.sysconf(OsConstants._SC_CLK_TCK)
+    private val cpuCount = Runtime.getRuntime().availableProcessors()
+    private var lastCpuTicks = 0L
+    private var lastCpuWallMs = 0L
+    private val statsSampler = object : Runnable {
+        override fun run() {
+            updateStats()
+            statsHandler.postDelayed(this, STATS_INTERVAL_MS)
+        }
+    }
 
     @SuppressLint("SetTextI18n")
     private val animationCallback = object : AnimationCallbacks() {
@@ -91,6 +110,58 @@ class MainActivity : AppCompatActivity() {
         binding.buttonSeekEnd.setOnClickListener { seekTo(10000000L) }
         binding.buttonSaveCurrentFrame.setOnClickListener { exportCurrentFrame() }
         binding.buttonRemove.setOnClickListener { removeView() }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lastCpuTicks = readSelfCpuTicks()
+        lastCpuWallMs = SystemClock.elapsedRealtime()
+        statsHandler.post(statsSampler)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        statsHandler.removeCallbacks(statsSampler)
+    }
+
+    @SuppressLint("SetTextI18n")
+    private fun updateStats() {
+        val nativeMb = Debug.getNativeHeapAllocatedSize() / BYTES_PER_MB
+        val runtime = Runtime.getRuntime()
+        val javaMb = (runtime.totalMemory() - runtime.freeMemory()) / BYTES_PER_MB
+
+        // App CPU usage since the previous sample: ticks of CPU time consumed
+        // divided by wall-clock time, normalized so 100% == one fully-busy core.
+        val nowTicks = readSelfCpuTicks()
+        val nowWallMs = SystemClock.elapsedRealtime()
+        val wallMs = (nowWallMs - lastCpuWallMs).coerceAtLeast(1L)
+        val cpuMs = (nowTicks - lastCpuTicks) * 1000.0 / clockTicksPerSecond
+        val cpuPercent = (cpuMs / wallMs) * 100.0
+        lastCpuTicks = nowTicks
+        lastCpuWallMs = nowWallMs
+
+        val d = drawable
+        val frameInfo = if (d != null) {
+            "frame ${d.currentFrameIndex + 1}/${d.frameCount}"
+        } else {
+            "no image"
+        }
+        val mode = if (binding.switchOnDemand.isChecked) "ON_DEMAND" else "EAGER"
+
+        binding.textStats.text = "native %.1f MB   java %.1f MB\ncpu %.0f%% (of %d cores)   %s   %s"
+            .format(nativeMb, javaMb, cpuPercent, cpuCount, mode, frameInfo)
+    }
+
+    /** utime + stime of this process, in clock ticks, from /proc/self/stat. */
+    private fun readSelfCpuTicks(): Long = try {
+        val stat = java.io.File("/proc/self/stat").readText()
+        // The comm field (in parentheses) may contain spaces, so split after ')'.
+        val fields = stat.substring(stat.lastIndexOf(')') + 2).split(' ')
+        // After comm+state, utime is field 14 and stime field 15 (1-based);
+        // here that is index 11 and 12 of the post-')' slice.
+        fields[11].toLong() + fields[12].toLong()
+    } catch (e: Exception) {
+        lastCpuTicks
     }
 
     @SuppressLint("SetTextI18n")
@@ -214,4 +285,9 @@ class MainActivity : AppCompatActivity() {
 
     private abstract class AnimationCallbacks
         : Animatable2Compat.AnimationCallback(), RepeatAnimationCallback
+
+    private companion object {
+        private const val STATS_INTERVAL_MS = 500L
+        private const val BYTES_PER_MB = 1024.0 * 1024.0
+    }
 }

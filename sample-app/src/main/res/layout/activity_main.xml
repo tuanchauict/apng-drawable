@@ -199,6 +199,17 @@
         app:layout_constraintTop_toTopOf="@id/text_status"
         tools:text="@tools:sample/lorem" />
 
+    <TextView
+        android:id="@+id/text_stats"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/text_status"
+        tools:text="native 0.0 MB  java 0.0 MB\ncpu 0%  frame 0/0" />
+
     <ImageView
         android:id="@+id/imageView"
         android:layout_width="match_parent"
@@ -207,7 +218,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/text_status"
+        app:layout_constraintTop_toBottomOf="@id/text_stats"
         tools:ignore="ContentDescription" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
